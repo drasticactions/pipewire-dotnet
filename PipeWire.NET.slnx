@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/PipeWire.NET.RegistrySample/PipeWire.NET.RegistrySample.csproj" />
+    <Project Path="samples/PipeWire.NET.CaptureSample/PipeWire.NET.CaptureSample.csproj" />
+    <Project Path="samples/PipeWire.NET.PlaybackSample/PipeWire.NET.PlaybackSample.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/PipeWire.NET/PipeWire.NET.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PipeWire.NET.Tests/PipeWire.NET.Tests.csproj" />
+  </Folder>
+</Solution>

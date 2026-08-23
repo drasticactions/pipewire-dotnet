@@ -1,0 +1,11 @@
+#pragma warning disable CS1591
+
+namespace PipeWire.Native;
+
+public partial struct pw_timer_queue
+{
+}
+
+public partial struct pw_timer_queue
+{
+}

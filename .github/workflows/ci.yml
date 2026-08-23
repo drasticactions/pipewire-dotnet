@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install PipeWire
+        # libpipewire-0.3-0 is what the bindings load; the pipewire binary is
+        # what the integration tests start their own private daemon with.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpipewire-0.3-0 pipewire
+
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Test
+        # The daemon-backed tests skip if the binary is missing, and the
+        # realtime tests skip when there is no session to join, which is the
+        # normal case on a runner.
+        run: dotnet test -c Release --no-build --logger "console;verbosity=normal"
+
+      - name: Pack
+        run: dotnet pack src/PipeWire.NET/PipeWire.NET.csproj -c Release -o artifacts
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts/*

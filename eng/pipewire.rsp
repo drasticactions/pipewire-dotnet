@@ -1,0 +1,41 @@
+--config
+codegen=latest
+multi-file
+--generate
+# funcs-with-body=false keeps ClangSharp from translating the header-only
+# `static inline` layer (SPA_API_*/PW_API_* functions: POD builder and parser,
+# spa_interface dispatch, list and hook helpers). Those bodies do not survive
+# translation, and the distribution libpipewire exports no symbols for them, so
+# a DllImport would not help either; PipeWire.Spa reimplements them in C#.
+funcs-with-body=false
+file-scoped-namespaces
+macro-bindings
+helper-types
+--file
+eng/include/pipewire-dotnet.h
+--include-directory
+eng/include
+--include-directory
+external/pipewire/src
+--include-directory
+external/pipewire/spa/include
+--language
+c
+--std
+gnu17
+--method-class-name
+Pipewire
+--namespace
+PipeWire.Native
+--exclude
+PW_MAP_RANGE_INIT
+--exclude
+SPA_IO_BUFFERS_INIT
+--exclude
+SPA_IO_MEMORY_INIT
+--library-path
+pipewire-0.3
+--output
+src/PipeWire.NET/Native/Generated
+--header-file
+eng/generated-header.txt

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>PipeWire</RootNamespace>
+    <AssemblyName>pipewire-dotnet</AssemblyName>
+    <PackageId>pipewire-dotnet</PackageId>
+    <Description>.NET bindings for PipeWire</Description>
+    <PackageTags>pipewire;spa;audio;video;wayland;multimedia;linux;interop;bindings</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <NoWarn>$(NoWarn);CS8981;CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+#pragma warning disable CS1591
+
+namespace PipeWire.Native;
+
+[NativeTypeName("unsigned int")]
+public enum spa_video_multiview_flags : uint
+{
+    SPA_VIDEO_MULTIVIEW_FLAGS_NONE = 0,
+    SPA_VIDEO_MULTIVIEW_FLAGS_RIGHT_VIEW_FIRST = (1 << 0),
+    SPA_VIDEO_MULTIVIEW_FLAGS_LEFT_FLIPPED = (1 << 1),
+    SPA_VIDEO_MULTIVIEW_FLAGS_LEFT_FLOPPED = (1 << 2),
+    SPA_VIDEO_MULTIVIEW_FLAGS_RIGHT_FLIPPED = (1 << 3),
+    SPA_VIDEO_MULTIVIEW_FLAGS_RIGHT_FLOPPED = (1 << 4),
+    SPA_VIDEO_MULTIVIEW_FLAGS_HALF_ASPECT = (1 << 14),
+    SPA_VIDEO_MULTIVIEW_FLAGS_MIXED_MONO = (1 << 15),
+}

@@ -1,0 +1,41 @@
+#pragma warning disable CS1591
+
+using System.Runtime.CompilerServices;
+
+namespace PipeWire.Native;
+
+public partial struct spa_io_segment_video
+{
+    [NativeTypeName("uint32_t")]
+    public uint flags;
+
+    [NativeTypeName("uint32_t")]
+    public uint offset;
+
+    [NativeTypeName("struct spa_fraction")]
+    public spa_fraction framerate;
+
+    [NativeTypeName("uint32_t")]
+    public uint hours;
+
+    [NativeTypeName("uint32_t")]
+    public uint minutes;
+
+    [NativeTypeName("uint32_t")]
+    public uint seconds;
+
+    [NativeTypeName("uint32_t")]
+    public uint frames;
+
+    [NativeTypeName("uint32_t")]
+    public uint field_count;
+
+    [NativeTypeName("uint32_t[11]")]
+    public _padding_e__FixedBuffer padding;
+
+    [InlineArray(11)]
+    public partial struct _padding_e__FixedBuffer
+    {
+        public uint e0;
+    }
+}

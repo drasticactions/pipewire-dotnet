@@ -1,0 +1,17 @@
+#pragma warning disable CS1591
+
+namespace PipeWire.Native;
+
+[NativeTypeName("unsigned int")]
+public enum spa_audio_iec958_codec : uint
+{
+    SPA_AUDIO_IEC958_CODEC_UNKNOWN,
+    SPA_AUDIO_IEC958_CODEC_PCM,
+    SPA_AUDIO_IEC958_CODEC_DTS,
+    SPA_AUDIO_IEC958_CODEC_AC3,
+    SPA_AUDIO_IEC958_CODEC_MPEG,
+    SPA_AUDIO_IEC958_CODEC_MPEG2_AAC,
+    SPA_AUDIO_IEC958_CODEC_EAC3,
+    SPA_AUDIO_IEC958_CODEC_TRUEHD,
+    SPA_AUDIO_IEC958_CODEC_DTSHD,
+}

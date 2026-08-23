@@ -1,0 +1,17 @@
+#pragma warning disable CS1591
+
+namespace PipeWire.Native;
+
+[NativeTypeName("unsigned int")]
+public enum spa_audio_wma_profile : uint
+{
+    SPA_AUDIO_WMA_PROFILE_UNKNOWN,
+    SPA_AUDIO_WMA_PROFILE_WMA7,
+    SPA_AUDIO_WMA_PROFILE_WMA8,
+    SPA_AUDIO_WMA_PROFILE_WMA9,
+    SPA_AUDIO_WMA_PROFILE_WMA10,
+    SPA_AUDIO_WMA_PROFILE_WMA9_PRO,
+    SPA_AUDIO_WMA_PROFILE_WMA9_LOSSLESS,
+    SPA_AUDIO_WMA_PROFILE_WMA10_LOSSLESS,
+    SPA_AUDIO_WMA_PROFILE_CUSTOM = 0x10000,
+}
