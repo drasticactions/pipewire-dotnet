@@ -10,6 +10,7 @@
     <Version>1.6.8</Version>
     <PackageVersion>$(Version)</PackageVersion>
     <SignAssembly>true</SignAssembly>
+    <NoWarn>$(NoWarn);CS8981;CS1591</NoWarn>
     <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)Key.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
