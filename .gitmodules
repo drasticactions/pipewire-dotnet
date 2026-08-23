@@ -1,0 +1,3 @@
+[submodule "external/pipewire"]
+	path = external/pipewire
+	url = https://github.com/PipeWire/pipewire.git
