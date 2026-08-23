@@ -23,11 +23,7 @@ public sealed unsafe class SpaDictionary : IDisposable
             stringBytes += Encoding.UTF8.GetByteCount(key) + 1 + Encoding.UTF8.GetByteCount(value ?? string.Empty) + 1;
         }
 
-        nuint size = (nuint)(sizeof(spa_dict) + (sizeof(spa_dict_item) * _count) + stringBytes);
-        _dict = (spa_dict*)NativeMemory.AllocZeroed(size);
-
-        spa_dict_item* itemArray = (spa_dict_item*)((byte*)_dict + sizeof(spa_dict));
-        byte* strings = (byte*)itemArray + (sizeof(spa_dict_item) * _count);
+        byte* strings = Allocate(stringBytes, out spa_dict_item* itemArray);
 
         for (int i = 0; i < items.Length; i++)
         {
@@ -36,10 +32,27 @@ public sealed unsafe class SpaDictionary : IDisposable
             itemArray[i].value = (sbyte*)strings;
             strings += WriteUtf8(items[i].Value ?? string.Empty, strings);
         }
+    }
 
-        _dict->flags = 0;
-        _dict->n_items = (uint)_count;
-        _dict->items = itemArray;
+    private SpaDictionary(ReadOnlySpan<SpaDictionaryEntry> entries)
+    {
+        _count = entries.Length;
+
+        int stringBytes = 0;
+        for (int i = 0; i < entries.Length; i++)
+        {
+            stringBytes += entries[i].KeyUtf8.Length + 1 + entries[i].ValueUtf8.Length + 1;
+        }
+
+        byte* strings = Allocate(stringBytes, out spa_dict_item* itemArray);
+
+        for (int i = 0; i < entries.Length; i++)
+        {
+            itemArray[i].key = (sbyte*)strings;
+            strings += WriteUtf8(entries[i].KeyUtf8, strings);
+            itemArray[i].value = (sbyte*)strings;
+            strings += WriteUtf8(entries[i].ValueUtf8, strings);
+        }
     }
 
     ~SpaDictionary() => Dispose();
@@ -49,6 +62,12 @@ public sealed unsafe class SpaDictionary : IDisposable
     public spa_dict* Handle => _dict;
 
     public static SpaDictionary From(IEnumerable<KeyValuePair<string, string?>> entries) => new(entries);
+
+    public static SpaDictionary FromEntries(params SpaDictionaryEntry[] entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        return new SpaDictionary(entries.AsSpan());
+    }
 
     public static SpaDictionary From(params string?[] keysAndValues)
     {
@@ -106,5 +125,26 @@ public sealed unsafe class SpaDictionary : IDisposable
         int length = Encoding.UTF8.GetBytes(value, new Span<byte>(destination, Encoding.UTF8.GetByteCount(value)));
         destination[length] = 0;
         return length + 1;
+    }
+
+    private static int WriteUtf8(ReadOnlySpan<byte> value, byte* destination)
+    {
+        value.CopyTo(new Span<byte>(destination, value.Length));
+        destination[value.Length] = 0;
+        return value.Length + 1;
+    }
+
+    private byte* Allocate(int stringBytes, out spa_dict_item* itemArray)
+    {
+        nuint size = (nuint)(sizeof(spa_dict) + (sizeof(spa_dict_item) * _count) + stringBytes);
+        _dict = (spa_dict*)NativeMemory.AllocZeroed(size);
+
+        itemArray = (spa_dict_item*)((byte*)_dict + sizeof(spa_dict));
+
+        _dict->flags = 0;
+        _dict->n_items = (uint)_count;
+        _dict->items = itemArray;
+
+        return (byte*)itemArray + (sizeof(spa_dict_item) * _count);
     }
 }

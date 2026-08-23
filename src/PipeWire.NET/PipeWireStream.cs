@@ -10,6 +10,7 @@ public sealed unsafe class PipeWireStream : IDisposable
 {
     private readonly NativeListener<pw_stream_events> _listener;
     private pw_stream* _stream;
+    private PipeWireProperties? _propertiesView;
 
     public PipeWireStream(PipeWireCore core, string name, PipeWireProperties? properties = null)
     {
@@ -70,6 +71,52 @@ public sealed unsafe class PipeWireStream : IDisposable
     }
 
     public uint NodeId => _stream is null ? PW_ID_ANY : pw_stream_get_node_id(_stream);
+
+    public PipeWireProperties Properties
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_stream is null, this);
+            pw_properties* properties = pw_stream_get_properties(_stream);
+
+            if (_propertiesView is null || _propertiesView.Handle != properties)
+            {
+                _propertiesView = PipeWireProperties.Borrow(properties);
+            }
+
+            return _propertiesView;
+        }
+    }
+
+    public ulong ObjectSerial => Properties.GetUInt64(PW_KEY_OBJECT_SERIAL);
+
+    public PipeWireProperties CopyProperties()
+    {
+        ObjectDisposedException.ThrowIf(_stream is null, this);
+        return PipeWireProperties.Copy(pw_stream_get_properties(_stream));
+    }
+
+    public int UpdateProperties(IEnumerable<KeyValuePair<string, string?>> properties)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+        ObjectDisposedException.ThrowIf(_stream is null, this);
+
+        using var dict = new SpaDictionary(properties);
+        return PipeWireException.ThrowIfNegative(
+            pw_stream_update_properties(_stream, dict.Handle),
+            "Could not update the stream properties");
+    }
+
+    public int UpdateProperties(params SpaDictionaryEntry[] properties)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+        ObjectDisposedException.ThrowIf(_stream is null, this);
+
+        using SpaDictionary dict = SpaDictionary.FromEntries(properties);
+        return PipeWireException.ThrowIfNegative(
+            pw_stream_update_properties(_stream, dict.Handle),
+            "Could not update the stream properties");
+    }
 
     public void Connect(
         spa_direction direction,

@@ -1,4 +1,5 @@
 using PipeWire.Native;
+using PipeWire.Spa;
 using static PipeWire.Native.Pipewire;
 
 namespace PipeWire;
@@ -7,6 +8,7 @@ public sealed unsafe class PipeWireContext : IDisposable
 {
     private readonly PipeWireLoop _loop;
     private pw_context* _context;
+    private PipeWireProperties? _propertiesView;
 
     public PipeWireContext(PipeWireLoop loop, PipeWireProperties? properties = null)
     {
@@ -33,7 +35,23 @@ public sealed unsafe class PipeWireContext : IDisposable
 
     public PipeWireLoop Loop => _loop;
 
-    public PipeWireProperties GetProperties()
+    public PipeWireProperties Properties
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_context is null, this);
+            pw_properties* properties = pw_context_get_properties(_context);
+
+            if (_propertiesView is null || _propertiesView.Handle != properties)
+            {
+                _propertiesView = PipeWireProperties.Borrow(properties);
+            }
+
+            return _propertiesView;
+        }
+    }
+
+    public PipeWireProperties CopyProperties()
     {
         ObjectDisposedException.ThrowIf(_context is null, this);
         return PipeWireProperties.Copy(pw_context_get_properties(_context));
@@ -45,6 +63,17 @@ public sealed unsafe class PipeWireContext : IDisposable
         ObjectDisposedException.ThrowIf(_context is null, this);
 
         using var dict = new Spa.SpaDictionary(properties);
+        return PipeWireException.ThrowIfNegative(
+            pw_context_update_properties(_context, dict.Handle),
+            "Could not update the context properties");
+    }
+
+    public int UpdateProperties(params SpaDictionaryEntry[] properties)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+        ObjectDisposedException.ThrowIf(_context is null, this);
+
+        using SpaDictionary dict = SpaDictionary.FromEntries(properties);
         return PipeWireException.ThrowIfNegative(
             pw_context_update_properties(_context, dict.Handle),
             "Could not update the context properties");

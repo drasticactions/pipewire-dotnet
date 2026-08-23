@@ -11,6 +11,7 @@ public sealed unsafe class PipeWireFilter : IDisposable
     private readonly NativeListener<pw_filter_events> _listener;
     private readonly List<PipeWireFilterPort> _ports = [];
     private pw_filter* _filter;
+    private PipeWireProperties? _propertiesView;
 
     public PipeWireFilter(PipeWireCore core, string name, PipeWireProperties? properties = null)
     {
@@ -63,6 +64,50 @@ public sealed unsafe class PipeWireFilter : IDisposable
 
     public uint NodeId => _filter is null ? PW_ID_ANY : pw_filter_get_node_id(_filter);
 
+    public PipeWireProperties Properties
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_filter is null, this);
+            pw_properties* properties = pw_filter_get_properties(_filter, null);
+
+            if (_propertiesView is null || _propertiesView.Handle != properties)
+            {
+                _propertiesView = PipeWireProperties.Borrow(properties);
+            }
+
+            return _propertiesView;
+        }
+    }
+
+    public PipeWireProperties CopyProperties()
+    {
+        ObjectDisposedException.ThrowIf(_filter is null, this);
+        return PipeWireProperties.Copy(pw_filter_get_properties(_filter, null));
+    }
+
+    public int UpdateProperties(IEnumerable<KeyValuePair<string, string?>> properties)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+        ObjectDisposedException.ThrowIf(_filter is null, this);
+
+        using var dict = new SpaDictionary(properties);
+        return PipeWireException.ThrowIfNegative(
+            pw_filter_update_properties(_filter, null, dict.Handle),
+            "Could not update the filter properties");
+    }
+
+    public int UpdateProperties(params SpaDictionaryEntry[] properties)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+        ObjectDisposedException.ThrowIf(_filter is null, this);
+
+        using SpaDictionary dict = SpaDictionary.FromEntries(properties);
+        return PipeWireException.ThrowIfNegative(
+            pw_filter_update_properties(_filter, null, dict.Handle),
+            "Could not update the filter properties");
+    }
+
     public IReadOnlyList<PipeWireFilterPort> Ports => _ports;
 
     public PipeWireFilterPort AddPort(
@@ -94,7 +139,7 @@ public sealed unsafe class PipeWireFilter : IDisposable
                 throw PipeWireException.FromErrno("Could not add a port to the filter");
             }
 
-            var port = new PipeWireFilterPort(portData, direction);
+            var port = new PipeWireFilterPort(this, portData, direction);
             _ports.Add(port);
             return port;
         }
@@ -247,10 +292,13 @@ public sealed unsafe class PipeWireFilter : IDisposable
 
 public sealed unsafe class PipeWireFilterPort
 {
+    private readonly PipeWireFilter _filter;
     private readonly void* _portData;
+    private PipeWireProperties? _propertiesView;
 
-    internal PipeWireFilterPort(void* portData, spa_direction direction)
+    internal PipeWireFilterPort(PipeWireFilter filter, void* portData, spa_direction direction)
     {
+        _filter = filter;
         _portData = portData;
         Direction = direction;
     }
@@ -258,6 +306,44 @@ public sealed unsafe class PipeWireFilterPort
     public void* Handle => _portData;
 
     public spa_direction Direction { get; }
+
+    public PipeWireProperties Properties
+    {
+        get
+        {
+            pw_properties* properties = pw_filter_get_properties(_filter.Handle, _portData);
+
+            if (_propertiesView is null || _propertiesView.Handle != properties)
+            {
+                _propertiesView = PipeWireProperties.Borrow(properties);
+            }
+
+            return _propertiesView;
+        }
+    }
+
+    public PipeWireProperties CopyProperties()
+        => PipeWireProperties.Copy(pw_filter_get_properties(_filter.Handle, _portData));
+
+    public int UpdateProperties(IEnumerable<KeyValuePair<string, string?>> properties)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+
+        using var dict = new SpaDictionary(properties);
+        return PipeWireException.ThrowIfNegative(
+            pw_filter_update_properties(_filter.Handle, _portData, dict.Handle),
+            "Could not update the filter port properties");
+    }
+
+    public int UpdateProperties(params SpaDictionaryEntry[] properties)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+
+        using SpaDictionary dict = SpaDictionary.FromEntries(properties);
+        return PipeWireException.ThrowIfNegative(
+            pw_filter_update_properties(_filter.Handle, _portData, dict.Handle),
+            "Could not update the filter port properties");
+    }
 
     public Span<float> GetDspBuffer(uint sampleCount)
     {

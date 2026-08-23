@@ -11,6 +11,8 @@
 #include <time.h>
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format.h>
+#include <spa/param/video/format.h>
+#include <spa/buffer/meta.h>
 
 #define P(t) printf("%-28s %zu\n", #t, sizeof(struct t))
 
@@ -46,6 +48,17 @@ int main(void)
     P(spa_data);
     P(spa_chunk);
     P(spa_audio_info_raw);
+    P(spa_video_info_raw);
+    P(spa_point);
+    P(spa_region);
+    P(spa_meta);
+    P(spa_meta_header);
+    P(spa_meta_region);
+    P(spa_meta_bitmap);
+    P(spa_meta_cursor);
+    P(spa_meta_busy);
+    P(spa_meta_videotransform);
+    P(spa_meta_sync_timeline);
     P(spa_param_info);
     P(pw_buffer);
     P(pw_time);

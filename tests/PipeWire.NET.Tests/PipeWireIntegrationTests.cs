@@ -231,10 +231,67 @@ public sealed class PipeWireIntegrationTests(PipeWireDaemonFixture daemon) : IDi
         _daemon.SkipIfUnavailable();
 
         using var session = new Session(_daemon);
-        using PipeWireProperties properties = session.Core.GetProperties();
+        using PipeWireProperties properties = session.Core.CopyProperties();
 
         Assert.NotEqual(0, properties.Count);
         Assert.NotNull(properties["application.name"]);
+    }
+
+    [Fact]
+    public async Task AConnectedStreamExposesItsObjectSerial()
+    {
+        _daemon.SkipIfUnavailable();
+
+        using var session = new Session(_daemon);
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        PipeWireStream stream;
+
+        using (session.Loop.Lock())
+        {
+            stream = new PipeWireStream(session.Core, "serial-test", PipeWireProperties.FromEntries(
+                new(PW_KEY_MEDIA_TYPE, "Audio"),
+                new(PW_KEY_MEDIA_CATEGORY, "Playback"),
+                new(PW_KEY_MEDIA_ROLE, "Music")));
+
+            stream.StateChanged += (_, e) =>
+            {
+                if (e.NewState is pw_stream_state.PW_STREAM_STATE_PAUSED or pw_stream_state.PW_STREAM_STATE_STREAMING)
+                {
+                    ready.TrySetResult();
+                }
+
+                if (e.NewState == pw_stream_state.PW_STREAM_STATE_ERROR)
+                {
+                    ready.TrySetException(new InvalidOperationException(e.Error));
+                }
+            };
+
+            stream.Connect(
+                spa_direction.SPA_DIRECTION_OUTPUT,
+                PW_ID_ANY,
+                pw_stream_flags.PW_STREAM_FLAG_AUTOCONNECT | pw_stream_flags.PW_STREAM_FLAG_MAP_BUFFERS,
+                SpaAudioFormats.BuildRaw(spa_audio_format.SPA_AUDIO_FORMAT_F32, 48000, 2));
+        }
+
+        try
+        {
+            await ready.Task.WaitAsync(Timeout, TestContext.Current.CancellationToken);
+
+            using (session.Loop.Lock())
+            {
+                Assert.NotEqual(0ul, stream.ObjectSerial);
+                Assert.Equal(stream.ObjectSerial, stream.Properties.GetUInt64(PW_KEY_OBJECT_SERIAL));
+                Assert.Equal("Playback", stream.Properties.Get(PW_KEY_MEDIA_CATEGORY));
+                Assert.False(stream.Properties.IsOwned);
+            }
+        }
+        finally
+        {
+            using (session.Loop.Lock())
+            {
+                stream.Dispose();
+            }
+        }
     }
 
     private static bool IsTestSink(PipeWireGlobal global)

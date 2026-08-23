@@ -13,6 +13,10 @@
 #include <string.h>
 #include <spa/pod/builder.h>
 #include <spa/param/audio/format-utils.h>
+#include <spa/param/video/format-utils.h>
+#include <spa/param/buffers.h>
+#include <spa/buffer/meta.h>
+#include <spa/buffer/buffer.h>
 #include <spa/param/props.h>
 #include <spa/control/control.h>
 
@@ -143,6 +147,117 @@ int main(void)
     spa_pod_builder_bytes(&b, "\x90\x40\x7f", 3);
     spa_pod_builder_pop(&b, &f[0]);
     dump("sequence", &b);
+
+    /* 11: fixed video/raw EnumFormat, the screencast counterpart of case 1 */
+    spa_pod_builder_init(&b, buf, sizeof(buf));
+    spa_pod_builder_push_object(&b, &f[0], SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
+    spa_pod_builder_prop(&b, SPA_FORMAT_mediaType, 0);
+    spa_pod_builder_id(&b, SPA_MEDIA_TYPE_video);
+    spa_pod_builder_prop(&b, SPA_FORMAT_mediaSubtype, 0);
+    spa_pod_builder_id(&b, SPA_MEDIA_SUBTYPE_raw);
+    spa_pod_builder_prop(&b, SPA_FORMAT_VIDEO_format, 0);
+    spa_pod_builder_id(&b, SPA_VIDEO_FORMAT_BGRx);
+    spa_pod_builder_prop(&b, SPA_FORMAT_VIDEO_size, 0);
+    spa_pod_builder_rectangle(&b, 1920, 1080);
+    spa_pod_builder_prop(&b, SPA_FORMAT_VIDEO_framerate, 0);
+    spa_pod_builder_fraction(&b, 60, 1);
+    spa_pod_builder_pop(&b, &f[0]);
+    dump("video_enumformat", &b);
+
+    /* 12: video/raw with format enum, size range and framerate range */
+    spa_pod_builder_init(&b, buf, sizeof(buf));
+    spa_pod_builder_push_object(&b, &f[0], SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
+    spa_pod_builder_prop(&b, SPA_FORMAT_mediaType, 0);
+    spa_pod_builder_id(&b, SPA_MEDIA_TYPE_video);
+    spa_pod_builder_prop(&b, SPA_FORMAT_mediaSubtype, 0);
+    spa_pod_builder_id(&b, SPA_MEDIA_SUBTYPE_raw);
+    spa_pod_builder_prop(&b, SPA_FORMAT_VIDEO_format, 0);
+    spa_pod_builder_push_choice(&b, &f[1], SPA_CHOICE_Enum, 0);
+    spa_pod_builder_id(&b, SPA_VIDEO_FORMAT_BGRx);
+    spa_pod_builder_id(&b, SPA_VIDEO_FORMAT_BGRx);
+    spa_pod_builder_id(&b, SPA_VIDEO_FORMAT_RGBx);
+    spa_pod_builder_pop(&b, &f[1]);
+    spa_pod_builder_prop(&b, SPA_FORMAT_VIDEO_size, 0);
+    spa_pod_builder_push_choice(&b, &f[1], SPA_CHOICE_Range, 0);
+    spa_pod_builder_rectangle(&b, 1920, 1080);
+    spa_pod_builder_rectangle(&b, 1, 1);
+    spa_pod_builder_rectangle(&b, 8192, 4320);
+    spa_pod_builder_pop(&b, &f[1]);
+    spa_pod_builder_prop(&b, SPA_FORMAT_VIDEO_framerate, 0);
+    spa_pod_builder_push_choice(&b, &f[1], SPA_CHOICE_Range, 0);
+    spa_pod_builder_fraction(&b, 60, 1);
+    spa_pod_builder_fraction(&b, 0, 1);
+    spa_pod_builder_fraction(&b, 1000, 1);
+    spa_pod_builder_pop(&b, &f[1]);
+    spa_pod_builder_pop(&b, &f[0]);
+    dump("video_choice", &b);
+
+    /* 13: dmabuf video/raw, modifier list flagged mandatory and don't-fixate */
+    spa_pod_builder_init(&b, buf, sizeof(buf));
+    spa_pod_builder_push_object(&b, &f[0], SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
+    spa_pod_builder_prop(&b, SPA_FORMAT_mediaType, 0);
+    spa_pod_builder_id(&b, SPA_MEDIA_TYPE_video);
+    spa_pod_builder_prop(&b, SPA_FORMAT_mediaSubtype, 0);
+    spa_pod_builder_id(&b, SPA_MEDIA_SUBTYPE_raw);
+    spa_pod_builder_prop(&b, SPA_FORMAT_VIDEO_format, 0);
+    spa_pod_builder_id(&b, SPA_VIDEO_FORMAT_BGRx);
+    spa_pod_builder_prop(&b, SPA_FORMAT_VIDEO_modifier,
+                         SPA_POD_PROP_FLAG_MANDATORY | SPA_POD_PROP_FLAG_DONT_FIXATE);
+    spa_pod_builder_push_choice(&b, &f[1], SPA_CHOICE_Enum, 0);
+    spa_pod_builder_long(&b, 0x0100000000000001L);
+    spa_pod_builder_long(&b, 0x0100000000000001L);
+    spa_pod_builder_long(&b, 0x00ffffffffffffffL);
+    spa_pod_builder_pop(&b, &f[1]);
+    spa_pod_builder_prop(&b, SPA_FORMAT_VIDEO_size, 0);
+    spa_pod_builder_rectangle(&b, 1920, 1080);
+    spa_pod_builder_prop(&b, SPA_FORMAT_VIDEO_framerate, 0);
+    spa_pod_builder_fraction(&b, 60, 1);
+    spa_pod_builder_pop(&b, &f[0]);
+    dump("video_dmabuf", &b);
+
+    /* 14: ParamMeta for the header */
+    spa_pod_builder_init(&b, buf, sizeof(buf));
+    spa_pod_builder_push_object(&b, &f[0], SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta);
+    spa_pod_builder_prop(&b, SPA_PARAM_META_type, 0);
+    spa_pod_builder_id(&b, SPA_META_Header);
+    spa_pod_builder_prop(&b, SPA_PARAM_META_size, 0);
+    spa_pod_builder_int(&b, sizeof(struct spa_meta_header));
+    spa_pod_builder_pop(&b, &f[0]);
+    dump("meta_header", &b);
+
+    /* 15: ParamMeta for video damage, a size range over four regions */
+    spa_pod_builder_init(&b, buf, sizeof(buf));
+    spa_pod_builder_push_object(&b, &f[0], SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta);
+    spa_pod_builder_prop(&b, SPA_PARAM_META_type, 0);
+    spa_pod_builder_id(&b, SPA_META_VideoDamage);
+    spa_pod_builder_prop(&b, SPA_PARAM_META_size, 0);
+    spa_pod_builder_push_choice(&b, &f[1], SPA_CHOICE_Range, 0);
+    spa_pod_builder_int(&b, sizeof(struct spa_meta_region) * 4);
+    spa_pod_builder_int(&b, sizeof(struct spa_meta_region));
+    spa_pod_builder_int(&b, sizeof(struct spa_meta_region) * 4);
+    spa_pod_builder_pop(&b, &f[1]);
+    spa_pod_builder_pop(&b, &f[0]);
+    dump("meta_damage", &b);
+
+    /* 16: ParamBuffers with a data type mask */
+    spa_pod_builder_init(&b, buf, sizeof(buf));
+    spa_pod_builder_push_object(&b, &f[0], SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers);
+    spa_pod_builder_prop(&b, SPA_PARAM_BUFFERS_buffers, 0);
+    spa_pod_builder_int(&b, 8);
+    spa_pod_builder_prop(&b, SPA_PARAM_BUFFERS_blocks, 0);
+    spa_pod_builder_int(&b, 1);
+    spa_pod_builder_prop(&b, SPA_PARAM_BUFFERS_size, 0);
+    spa_pod_builder_int(&b, 1920 * 1080 * 4);
+    spa_pod_builder_prop(&b, SPA_PARAM_BUFFERS_stride, 0);
+    spa_pod_builder_int(&b, 1920 * 4);
+    spa_pod_builder_prop(&b, SPA_PARAM_BUFFERS_align, 0);
+    spa_pod_builder_int(&b, 16);
+    spa_pod_builder_prop(&b, SPA_PARAM_BUFFERS_dataType, 0);
+    spa_pod_builder_push_choice(&b, &f[1], SPA_CHOICE_Flags, 0);
+    spa_pod_builder_int(&b, (1 << SPA_DATA_MemFd) | (1 << SPA_DATA_DmaBuf));
+    spa_pod_builder_pop(&b, &f[1]);
+    spa_pod_builder_pop(&b, &f[0]);
+    dump("buffers", &b);
 
     return 0;
 }

@@ -11,6 +11,7 @@ public sealed unsafe class PipeWireCore : IDisposable
     private readonly PipeWireContext _context;
     private readonly NativeListener<pw_core_events> _listener;
     private pw_core* _core;
+    private PipeWireProperties? _propertiesView;
 
     internal PipeWireCore(PipeWireContext context, pw_core* core)
     {
@@ -56,7 +57,23 @@ public sealed unsafe class PipeWireCore : IDisposable
 
     public PipeWireCoreInfo? ServerInfo { get; private set; }
 
-    public PipeWireProperties GetProperties()
+    public PipeWireProperties Properties
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_core is null, this);
+            pw_properties* properties = pw_core_get_properties(_core);
+
+            if (_propertiesView is null || _propertiesView.Handle != properties)
+            {
+                _propertiesView = PipeWireProperties.Borrow(properties);
+            }
+
+            return _propertiesView;
+        }
+    }
+
+    public PipeWireProperties CopyProperties()
     {
         ObjectDisposedException.ThrowIf(_core is null, this);
         return PipeWireProperties.Copy(pw_core_get_properties(_core));
