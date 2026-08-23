@@ -192,6 +192,12 @@ public sealed unsafe class PipeWireFilter : IDisposable
         PipeWireException.ThrowIfNegative(pw_filter_flush(_filter, drain ? (byte)1 : (byte)0), "Could not flush the filter");
     }
 
+    public bool TriggerProcess() => HasNode && pw_filter_trigger_process(_filter) >= 0;
+
+    public bool IsDriving => HasNode && pw_filter_is_driving(_filter) != 0;
+
+    private bool HasNode => _filter is not null && State >= pw_filter_state.PW_FILTER_STATE_CONNECTING;
+
     public void Dispose()
     {
         if (_filter is not null)

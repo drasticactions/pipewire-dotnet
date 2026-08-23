@@ -186,6 +186,12 @@ public sealed unsafe class PipeWireStream : IDisposable
         PipeWireException.ThrowIfNegative(pw_stream_flush(_stream, drain ? (byte)1 : (byte)0), "Could not flush the stream");
     }
 
+    public bool TriggerProcess() => HasNode && pw_stream_trigger_process(_stream) >= 0;
+
+    public bool IsDriving => HasNode && pw_stream_is_driving(_stream) != 0;
+
+    private bool HasNode => _stream is not null && State >= pw_stream_state.PW_STREAM_STATE_CONNECTING;
+
     public PipeWireBuffer DequeueBuffer()
         => _stream is null ? default : new PipeWireBuffer(pw_stream_dequeue_buffer(_stream));
 

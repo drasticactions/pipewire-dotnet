@@ -294,6 +294,56 @@ public sealed class PipeWireIntegrationTests(PipeWireDaemonFixture daemon) : IDi
         }
     }
 
+    [Fact]
+    public void AnEmbeddedLoopDrivesTheConnectionByHand()
+    {
+        _daemon.SkipIfUnavailable();
+        PipeWireLibrary.Init();
+
+        using PipeWireLoop loop = PipeWireLoop.Create();
+        loop.SetName("embedded-tests");
+
+        using var context = new PipeWireContext(loop);
+        using PipeWireCore core = context.Connect(_daemon.CreateConnectionProperties());
+
+        PipeWireCoreInfo? info = core.ServerInfo;
+        core.Info += (_, received) => info = received;
+
+        loop.Enter();
+
+        try
+        {
+            for (int i = 0; i < 200 && info is null; i++)
+            {
+                Assert.True(loop.Iterate(50) >= 0);
+            }
+        }
+        finally
+        {
+            loop.Leave();
+        }
+
+        Assert.NotNull(info);
+        Assert.True(loop.IsOwned);
+    }
+
+    [Fact]
+    public void TriggerProcessIsInertBeforeTheStreamIsConnected()
+    {
+        _daemon.SkipIfUnavailable();
+
+        using var session = new Session(_daemon);
+
+        using (session.Loop.Lock())
+        {
+            using var stream = new PipeWireStream(session.Core, "unconnected");
+
+            Assert.Equal(pw_stream_state.PW_STREAM_STATE_UNCONNECTED, stream.State);
+            Assert.False(stream.IsDriving);
+            Assert.False(stream.TriggerProcess());
+        }
+    }
+
     private static bool IsTestSink(PipeWireGlobal global)
         => global.IsNode && global.GetProperty("node.name") == PipeWireDaemonFixture.SinkName;
 

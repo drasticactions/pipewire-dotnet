@@ -4,13 +4,45 @@ using static PipeWire.Native.Pipewire;
 
 namespace PipeWire;
 
-public sealed unsafe class PipeWireLoop
+public sealed unsafe class PipeWireLoop : IDisposable
 {
-    private readonly pw_loop* _loop;
+    private readonly bool _owned;
+    private pw_loop* _loop;
 
-    internal PipeWireLoop(pw_loop* loop) => _loop = loop;
+    internal PipeWireLoop(pw_loop* loop)
+    {
+        _loop = loop;
+        _owned = false;
+    }
+
+    private PipeWireLoop(pw_loop* loop, bool owned)
+    {
+        _loop = loop;
+        _owned = owned;
+    }
 
     public pw_loop* Handle => _loop;
+
+    public bool IsOwned => _owned;
+
+    public static PipeWireLoop Create()
+    {
+        PipeWireLibrary.EnsureInitialized();
+        return new PipeWireLoop(
+            PipeWireException.ThrowIfNull(pw_loop_new(null), "Could not create the PipeWire loop"),
+            owned: true);
+    }
+
+    public static PipeWireLoop Create(params SpaDictionaryEntry[] properties)
+    {
+        ArgumentNullException.ThrowIfNull(properties);
+        PipeWireLibrary.EnsureInitialized();
+
+        using SpaDictionary dict = SpaDictionary.FromEntries(properties);
+        return new PipeWireLoop(
+            PipeWireException.ThrowIfNull(pw_loop_new(dict.Handle), "Could not create the PipeWire loop"),
+            owned: true);
+    }
 
     public int Fd
     {
@@ -67,6 +99,17 @@ public sealed unsafe class PipeWireLoop
         {
             PipeWireException.ThrowIfNegative(pw_loop_set_name(_loop, (sbyte*)p), "Could not set the loop name");
         }
+    }
+
+    public void Dispose()
+    {
+        if (_loop is not null && _owned)
+        {
+            pw_loop_destroy(_loop);
+            _loop = null;
+        }
+
+        GC.SuppressFinalize(this);
     }
 
     private spa_loop_control_methods* Control(string method, out void* data)
