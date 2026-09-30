@@ -101,6 +101,29 @@ public sealed unsafe class PipeWireContext : IDisposable
         return new PipeWireCore(this, core);
     }
 
+    public PipeWireModule LoadModule(string name, string? arguments = null, PipeWireProperties? properties = null)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ObjectDisposedException.ThrowIf(_context is null, this);
+
+        byte[] nativeName = Utf8.ToNative(name);
+        byte[]? nativeArguments = Utf8.ToNativeOrNull(arguments);
+
+        fixed (byte* namePointer = nativeName)
+        fixed (byte* argumentsPointer = nativeArguments)
+        {
+            pw_impl_module* module = PipeWireException.ThrowIfNull(
+                pw_context_load_module(
+                    _context,
+                    (sbyte*)namePointer,
+                    (sbyte*)argumentsPointer,
+                    properties is null ? null : properties.Release()),
+                $"Could not load the module '{name}'");
+
+            return new PipeWireModule(module);
+        }
+    }
+
     public void Dispose()
     {
         if (_context is not null)

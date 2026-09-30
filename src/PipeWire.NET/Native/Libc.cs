@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace PipeWire.Native;
@@ -14,6 +15,11 @@ internal static unsafe class Libc
         _errnoLocation = (delegate* unmanaged[Cdecl]<int*>)NativeLibrary.GetExport(self, "__errno_location");
         _poll = (delegate* unmanaged[Cdecl]<PollFd*, nuint, int, int>)NativeLibrary.GetExport(self, "poll");
     }
+
+#pragma warning disable CA2255
+    [ModuleInitializer]
+    internal static void Initialize() => RuntimeHelpers.RunClassConstructor(typeof(Libc).TypeHandle);
+#pragma warning restore CA2255
 
     internal const short POLLIN = 0x1;
 

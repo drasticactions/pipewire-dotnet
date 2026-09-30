@@ -347,6 +347,184 @@ public sealed class PipeWireIntegrationTests(PipeWireDaemonFixture daemon) : IDi
     private static bool IsTestSink(PipeWireGlobal global)
         => global.IsNode && global.GetProperty("node.name") == PipeWireDaemonFixture.SinkName;
 
+    [Fact]
+    public void LoadingAModuleThatDoesNotExistThrowsNotFound()
+    {
+        _daemon.SkipIfUnavailable();
+
+        using var session = new Session(_daemon);
+
+        using (session.Loop.Lock())
+        {
+            PipeWireException error = Assert.Throws<PipeWireException>(
+                () => session.Context.LoadModule("libpipewire-module-pipewire-dotnet-missing"));
+
+            Assert.Equal(2, error.Errno);
+        }
+    }
+
+    [Fact]
+    public async Task AFilterChainLoadsTakesControlsAndUnloads()
+    {
+        _daemon.SkipIfUnavailable();
+
+        using var session = new Session(_daemon);
+        await session.ListGlobalsAsync();
+
+        var added = new TaskCompletionSource<PipeWireGlobal>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var removed = new TaskCompletionSource<uint>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var frequency = new TaskCompletionSource<float>(TaskCreationOptions.RunContinuationsAsynchronously);
+        uint nodeId = PW_ID_ANY;
+
+        PipeWireModule module;
+        PipeWireNode node;
+        using (session.Loop.Lock())
+        {
+            session.Registry.GlobalAdded += (_, global) =>
+            {
+                if (global.Type == PipeWireInterfaces.Node && global.GetProperty("node.name") == FilterChainSink)
+                {
+                    added.TrySetResult(global);
+                }
+            };
+            session.Registry.GlobalRemoved += (_, id) =>
+            {
+                if (id == Volatile.Read(ref nodeId))
+                {
+                    removed.TrySetResult(id);
+                }
+            };
+
+            module = session.Context.LoadModule("libpipewire-module-filter-chain", FilterChainArguments(_daemon.SocketPath));
+
+            Assert.False(module.IsDestroyed);
+            Assert.Equal("libpipewire-module-filter-chain", module.Name);
+            Assert.NotEqual(PW_ID_ANY, module.GlobalId);
+        }
+
+        PipeWireGlobal sink = await added.Task.WaitAsync(Timeout, TestContext.Current.CancellationToken);
+        Volatile.Write(ref nodeId, sink.Id);
+        Assert.Equal("Audio/Sink", sink.GetProperty("media.class"));
+
+        using (session.Loop.Lock())
+        {
+            node = session.Registry.BindNode(sink.Id);
+            node.ParamChanged += (_, p) =>
+            {
+                if (p.ParamType == spa_param_type.SPA_PARAM_Props &&
+                    TryReadControl(p.Param, "lp:Freq", out float value) &&
+                    value == 440f)
+                {
+                    frequency.TrySetResult(value);
+                }
+            };
+            node.SubscribeParams(spa_param_type.SPA_PARAM_Props);
+
+            using var builder = new SpaPodBuilder();
+            using (builder.PushObject(SPA_TYPE_OBJECT_Props, (uint)spa_param_type.SPA_PARAM_Props))
+            {
+                builder.AddProperty((uint)spa_prop.SPA_PROP_params);
+                using (builder.PushStruct())
+                {
+                    builder.AddString("lp:Freq");
+                    builder.AddFloat(440f);
+                }
+            }
+
+            node.SetParam(spa_param_type.SPA_PARAM_Props, builder.WrittenSpan);
+        }
+
+        Assert.Equal(440f, await frequency.Task.WaitAsync(Timeout, TestContext.Current.CancellationToken));
+
+        bool destroyed = false;
+        using (session.Loop.Lock())
+        {
+            node.Dispose();
+            module.Destroyed += (_, _) => destroyed = true;
+            module.Dispose();
+
+            Assert.True(module.IsDestroyed);
+            module.Dispose();
+        }
+
+        Assert.Equal(sink.Id, await removed.Task.WaitAsync(Timeout, TestContext.Current.CancellationToken));
+        Assert.False(destroyed);
+    }
+
+    [Fact]
+    public void DestroyingTheContextDestroysALoadedModule()
+    {
+        _daemon.SkipIfUnavailable();
+
+        PipeWireLibrary.Init();
+
+        using var loop = new PipeWireThreadLoop("module-teardown");
+        var context = new PipeWireContext(loop);
+        PipeWireModule module;
+        bool destroyed = false;
+
+        using (loop.Lock())
+        {
+            PipeWireCore core = context.Connect(_daemon.CreateConnectionProperties());
+            _ = core;
+
+            module = context.LoadModule("libpipewire-module-filter-chain", FilterChainArguments(_daemon.SocketPath));
+            module.Destroyed += (_, _) => destroyed = true;
+        }
+
+        context.Dispose();
+
+        Assert.True(destroyed);
+        Assert.True(module.IsDestroyed);
+        module.Dispose();
+    }
+
+    private const string FilterChainSink = "pipewire-dotnet-test-filter-chain";
+
+    private static string FilterChainArguments(string remote) => $$"""
+        {
+            remote.name = "{{remote}}"
+            node.description = "pipewire-dotnet test filter-chain"
+            filter.graph = {
+                nodes = [
+                    { type = builtin name = lp label = bq_lowpass control = { "Freq" = 1000.0 } }
+                ]
+            }
+            capture.props = {
+                node.name = "{{FilterChainSink}}"
+                media.class = Audio/Sink
+                audio.position = [ MONO ]
+            }
+            playback.props = {
+                node.name = "{{FilterChainSink}}-output"
+                node.passive = true
+                audio.position = [ MONO ]
+            }
+        }
+        """;
+
+    private static bool TryReadControl(SpaPod param, string name, out float value)
+    {
+        value = 0;
+        if (param.IsNull || !param.AsObject().TryGetValue((uint)spa_prop.SPA_PROP_params, out SpaPod controls))
+        {
+            return false;
+        }
+
+        bool matched = false;
+        foreach (SpaPod entry in controls.AsStruct())
+        {
+            if (matched)
+            {
+                return entry.TryGetFloat(out value) || (entry.TryGetDouble(out double wide) && (value = (float)wide) == value);
+            }
+
+            matched = entry.TryGetString(out string? key) && key == name;
+        }
+
+        return false;
+    }
+
     private sealed class Session : IDisposable
     {
         private readonly PipeWireThreadLoop _loop;
@@ -379,6 +557,8 @@ public sealed class PipeWireIntegrationTests(PipeWireDaemonFixture daemon) : IDi
         }
 
         internal PipeWireThreadLoop Loop => _loop;
+
+        internal PipeWireContext Context => _context;
 
         internal PipeWireCore Core => _core;
 
